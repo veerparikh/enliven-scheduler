@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Enliven Scheduler</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- PIN gate (shown before app) -->
+<div class="pin-gate" id="pin-gate">
+  <h1>Enliven</h1>
+  <p>Enter your PIN to continue</p>
+  <div class="pin-dots" id="pin-dots">
+    <div class="pin-dot" id="dot-0"></div>
+    <div class="pin-dot" id="dot-1"></div>
+    <div class="pin-dot" id="dot-2"></div>
+    <div class="pin-dot" id="dot-3"></div>
+  </div>
+  <div class="pin-keypad">
+    <button class="pin-key" onclick="pinKey('1')">1</button>
+    <button class="pin-key" onclick="pinKey('2')">2</button>
+    <button class="pin-key" onclick="pinKey('3')">3</button>
+    <button class="pin-key" onclick="pinKey('4')">4</button>
+    <button class="pin-key" onclick="pinKey('5')">5</button>
+    <button class="pin-key" onclick="pinKey('6')">6</button>
+    <button class="pin-key" onclick="pinKey('7')">7</button>
+    <button class="pin-key" onclick="pinKey('8')">8</button>
+    <button class="pin-key" onclick="pinKey('9')">9</button>
+    <button class="pin-key" style="font-size:14px" onclick="pinClear()">⌫</button>
+    <button class="pin-key" onclick="pinKey('0')">0</button>
+    <button class="pin-key" style="visibility:hidden"></button>
+  </div>
+  <div class="pin-error" id="pin-error"></div>
+</div>
+
+<!-- Offline banner -->
+<div class="offline-banner" id="offline-banner">
+  <i class="ti ti-wifi-off"></i>
+  <span id="offline-msg">You're offline — changes will sync when reconnected</span>
+</div>
+
+<!-- Main app (hidden until PIN unlocked) -->
+<div class="app" id="app" style="display:none">
+  <div class="tabs" id="main-tabs">
+    <button class="tab active" onclick="switchTab('schedule')"><i class="ti ti-calendar"></i>Schedule</button>
+    <button class="tab" onclick="switchTab('accounts')"><i class="ti ti-chart-bar"></i>Accounts</button>
+    <button class="tab" onclick="switchTab('history')"><i class="ti ti-history"></i>History</button>
+    <button class="tab" onclick="switchTab('team')"><i class="ti ti-users"></i>Team</button>
+    <button class="tab" onclick="switchTab('cases')"><i class="ti ti-list"></i>Cases</button>
+  </div>
+
+  <!-- Schedule tab -->
+  <div class="tab-content active" id="tab-schedule">
+    <div class="week-nav">
+      <button class="btn" onclick="navigateWeek(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="week-label" id="week-label"></span>
+      <button class="btn" onclick="navigateWeek(1)"><i class="ti ti-chevron-right"></i></button>
+      <div class="view-toggle" style="margin-left:4px">
+        <button id="btn-weekly" class="active" onclick="setCalView('weekly')">Week</button>
+        <button id="btn-daily" onclick="setCalView('daily')">Day</button>
+      </div>
+      <button class="btn primary" onclick="newWeek()" style="margin-left:4px"><i class="ti ti-plus"></i>New week</button>
+      <button class="btn" onclick="exportCSV()"><i class="ti ti-download"></i>CSV</button>
+    </div>
+    <div class="stats-row" id="schedule-stats"></div>
+    <div class="legend-row">
+      <span><span class="leg-dot" style="background:#EEEDFE;border:0.5px solid #AFA9EC"></span>My OT</span>
+      <span><span class="leg-dot" style="background:#EAF3DE;border:0.5px solid #97C459"></span>My Pilates</span>
+      <span><span class="leg-dot" style="background:#FAEEDA;border:0.5px solid #EF9F27"></span>Delegated</span>
+      <span style="border:1px dashed #888;padding:0 4px;border-radius:2px;font-size:10px">dashed=unpaid</span>
+      <span><span class="badge z">Z</span> Zoom</span>
+      <span><span class="badge p">P</span> Package</span>
+    </div>
+
+    <!-- Weekly grid -->
+    <div id="view-weekly">
+      <div class="schedule-wrap">
+        <div id="schedule-grid"></div>
+      </div>
+    </div>
+
+    <!-- Daily view -->
+    <div id="view-daily" style="display:none">
+      <div class="day-tabs" id="day-tabs"></div>
+      <div class="daily-wrap">
+        <div id="daily-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Accounts tab -->
+  <div class="tab-content" id="tab-accounts">
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:0.5px solid var(--color-border-tertiary)">
+      <span style="font-size:12px;font-weight:500">View:</span>
+      <button class="btn" id="acc-weekly-btn" onclick="setAccView('weekly')">Weekly</button>
+      <button class="btn" id="acc-monthly-btn" onclick="setAccView('monthly')">Monthly</button>
+      <button class="btn" onclick="exportAccountsCSV()" style="margin-left:auto"><i class="ti ti-download"></i>Export</button>
+    </div>
+    <div class="accounts-wrap" id="accounts-content"></div>
+  </div>
+
+  <!-- History tab -->
+  <div class="tab-content" id="tab-history">
+    <div class="history-wrap" id="history-content"></div>
+  </div>
+
+  <!-- Team tab -->
+  <div class="tab-content" id="tab-team">
+    <div class="team-wrap" id="team-content"></div>
+  </div>
+
+  <!-- Cases tab -->
+  <div class="tab-content" id="tab-cases">
+    <div class="cases-wrap">
+      <div class="filter-row" id="cases-filters"></div>
+      <div id="cases-list"></div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-container"></div>
+
+<script src="config.js"></script>
+<script src="api-client.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
