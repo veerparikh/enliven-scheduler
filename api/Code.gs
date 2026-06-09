@@ -39,15 +39,16 @@ function doPost(e) {
 
 function handleRequest(e) {
   try {
-    var action = e.parameter.action || (e.postData && JSON.parse(e.postData.contents).action);
+    var body = parseBody(e);
+    var action = (body && body.action) || e.parameter.action;
     var result;
 
-    if (action === 'getWeeks')           result = getWeeks();
-    else if (action === 'getAppointments') result = getAppointments(e.parameter.weekId);
+    if (action === 'getWeeks')               result = getWeeks();
+    else if (action === 'getAppointments')   result = getAppointments(e.parameter.weekId || body.weekId);
     else if (action === 'getAllAppointments') result = getAllAppointments();
-    else if (action === 'saveAppointment')   result = saveAppointment(parseBody(e));
-    else if (action === 'deleteAppointment') result = deleteAppointment(parseBody(e));
-    else if (action === 'saveWeek')          result = saveWeek(parseBody(e));
+    else if (action === 'saveAppointment')   result = saveAppointment(body);
+    else if (action === 'deleteAppointment') result = deleteAppointment(body);
+    else if (action === 'saveWeek')          result = saveWeek(body);
     else result = { error: 'Unknown action: ' + action };
 
     return jsonResponse(result);
@@ -57,6 +58,8 @@ function handleRequest(e) {
 }
 
 function parseBody(e) {
+  // Support payload= param (GET-based POST workaround for CORS)
+  if (e.parameter && e.parameter.payload) return JSON.parse(e.parameter.payload);
   if (e.postData && e.postData.contents) return JSON.parse(e.postData.contents);
   return e.parameter;
 }

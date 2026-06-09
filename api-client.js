@@ -13,11 +13,11 @@ var API = (function () {
   }
 
   function post(body) {
-    return fetch(CONFIG.API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }).then(function (r) { return r.json(); });
+    // Apps Script doesn't handle CORS preflight for JSON POSTs from external origins.
+    // Workaround: send as GET with the payload base64-encoded in a URL param.
+    var encoded = encodeURIComponent(JSON.stringify(body));
+    var url = CONFIG.API_URL + '?payload=' + encoded;
+    return fetch(url).then(function (r) { return r.json(); });
   }
 
   function encodeParams(obj) {
