@@ -354,16 +354,8 @@ function renderWeeklySchedule() {
         if (a.status === 'cancelled' || a.status === 'deleted') return false;
         return timeToMinutes(a.startTime) === timeToMinutes(time) && a.dayIndex === di;
       });
-      var isCovered = w.appointments.some(function(a) {
-        if (a.status === 'cancelled' || a.status === 'deleted') return false;
-        var aStart = timeToMinutes(a.startTime);
-        var slotStart = timeToMinutes(time);
-        return aStart < slotStart && aStart + a.duration > slotStart && a.dayIndex === di;
-      });
       var cellContent = slotAppts.map(pillHtml).join('');
-      html += '<div class="scell' + (di===todayIdx?' today-col':'') + '" ' +
-        (isCovered ? 'style="pointer-events:none;background:var(--color-background-secondary)"' : 'onclick="openAddModal(' + di + ',\'' + time + '\')"') +
-        '>' + cellContent + '</div>';
+      html += '<div class="scell' + (di===todayIdx?' today-col':'') + '" onclick="openAddModal(' + di + ',\'' + time + '\')">' + cellContent + '</div>';
     });
   });
   html += '</div>';
@@ -391,16 +383,8 @@ function renderDailySchedule() {
       if (a.status === 'cancelled' || a.status === 'deleted') return false;
       return timeToMinutes(a.startTime) === timeToMinutes(time) && a.dayIndex === di;
     });
-    var isCovered = w.appointments.some(function(a) {
-      if (a.status === 'cancelled' || a.status === 'deleted') return false;
-      var aStart = timeToMinutes(a.startTime);
-      var slotStart = timeToMinutes(time);
-      return aStart < slotStart && aStart + a.duration > slotStart && a.dayIndex === di;
-    });
     html += '<div class="daily-tcell">' + fmtTime(time) + '</div>';
-    html += '<div class="daily-scell" ' +
-      (isCovered ? 'style="pointer-events:none;background:var(--color-background-secondary)"' : 'onclick="openAddModal(' + di + ',\'' + time + '\')"') +
-      '>' + slotAppts.map(pillHtml).join('') + '</div>';
+    html += '<div class="daily-scell" onclick="openAddModal(' + di + ',\'' + time + '\')">' + slotAppts.map(pillHtml).join('') + '</div>';
   });
   html += '</div>';
   document.getElementById('daily-grid').innerHTML = html;
