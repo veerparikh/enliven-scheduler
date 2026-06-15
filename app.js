@@ -255,6 +255,17 @@ function navigateWeek(dir) {
     } else {
       render();
     }
+  } else if (dir === -1) {
+    // Create a week for the previous Monday
+    var firstWeek = state.weeks[0];
+    var prevMonday = addDays(firstWeek.mondayDate, -7);
+    var week = { id: 'w' + Date.now(), mondayDate: prevMonday, label: '', appointments: [] };
+    week.label = formatWeekLabel(week);
+    state.weeks.unshift(week);
+    state.currentWeekIdx = 0;
+    persistWeek(week);
+    saveLocalCache();
+    render();
   }
 }
 
