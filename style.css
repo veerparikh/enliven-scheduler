@@ -110,6 +110,7 @@ body{font-family:var(--font-sans,system-ui,sans-serif);font-size:13px;color:var(
 .badge{font-size:9px;padding:1px 3px;border-radius:2px;font-weight:500;line-height:1.2}
 .badge.z{background:#378ADD;color:#fff}
 .badge.p{background:#D4537E;color:#fff}
+.badge.g{background:#1D9E75;color:#fff}
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .btn{padding:5px 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary);cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:5px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}

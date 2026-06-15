@@ -14,9 +14,9 @@ var SHEETS = {
 
 var APPT_COLS = [
   'id', 'weekId', 'mondayDate', 'dayIndex', 'dayName',
-  'startTime', 'endTime', 'duration', 'clientName', 'type',
+  'startTime', 'endTime', 'duration', 'clientName', 'isGroup', 'type',
   'assignee', 'format', 'equipment', 'packageOn', 'sessionNum',
-  'sessionTotal', 'packageRate', 'zoom', 'amount', 'method',
+  'sessionTotal', 'zoom', 'amount', 'method',
   'paid', 'notes', 'status', 'createdAt', 'updatedAt',
 ];
 
@@ -289,6 +289,7 @@ function normaliseAppt(a) {
     endTime: formatTimeValue(a.endTime),
     duration: parseInt(a.duration) || 60,
     clientName: String(a.clientName),
+    isGroup: a.isGroup === 'TRUE' || a.isGroup === true,
     type: String(a.type),
     assignee: String(a.assignee || ''),
     format: String(a.format || ''),
@@ -296,7 +297,6 @@ function normaliseAppt(a) {
     packageOn: a.packageOn === 'TRUE' || a.packageOn === true,
     sessionNum: a.sessionNum !== '' ? parseInt(a.sessionNum) : null,
     sessionTotal: a.sessionTotal !== '' ? parseInt(a.sessionTotal) : null,
-    packageRate: a.packageRate !== '' ? parseFloat(a.packageRate) : null,
     zoom: a.zoom === 'TRUE' || a.zoom === true,
     amount: parseFloat(a.amount) || 0,
     method: String(a.method || ''),

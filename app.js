@@ -404,11 +404,11 @@ function setDailyDay(idx) {
 function pillHtml(a) {
   var cls = a.type === 'ot' ? 'ot' : a.type === 'pilates' ? 'pilates' : 'delegated';
   var extra = (!a.paid ? ' unpaid' : '') + (a.status === 'cancelled' ? ' cancelled' : '');
-  var names = (a.clientName || '').split(',').map(function(n) { return n.trim(); }).filter(Boolean);
-  var displayName = names.length > 1 ? names[0] + ' +' + (names.length - 1) : (names[0] || '–');
+  var displayName = (a.clientName || '–').trim();
   return '<div class="pill ' + cls + extra + '" onclick="event.stopPropagation();openDetail(\'' + a.id + '\')" style="margin-bottom:1px">' +
     '<div class="pill-name">' + esc(displayName) + '</div>' +
     '<div class="pill-meta">' +
+    (a.isGroup ? '<span class="badge g">G</span>' : '') +
     (a.amount ? '<span style="font-size:9px">' + fmtAmt(a.amount) + '</span>' : '') +
     (a.zoom ? '<span class="badge z">Z</span>' : '') +
     (a.packageOn ? '<span class="badge p">P ' + (a.sessionNum||'') + '/' + (a.sessionTotal||'') + '</span>' : '') +
@@ -420,64 +420,47 @@ function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// ── Patient tag input ─────────────────────────────────────────
-var _tagNames = [];
-
+// ── Patient autocomplete ──────────────────────────────────────
 function getPatients() {
   var seen = {};
   state.weeks.forEach(function(w) {
     w.appointments.forEach(function(a) {
-      if (a.clientName) {
-        a.clientName.split(',').forEach(function(n) {
-          var t = n.trim();
-          if (t) seen[t] = true;
-        });
-      }
+      var name = (a.clientName || '').trim();
+      if (name) seen[name] = true;
     });
   });
   return Object.keys(seen).sort(function(a, b) { return a.localeCompare(b); });
 }
 
-function clientFieldHtml() {
-  return '<div class="tag-field" id="m-client-field">' +
-    '<label>Patient(s)</label>' +
-    '<div class="tag-input-wrap" id="m-tag-wrap">' +
-      '<div id="m-tags-row"></div>' +
-      '<input id="m-client-input" type="text" placeholder="Type to search or add…" autocomplete="off">' +
-    '</div>' +
-    '<div id="m-tag-dropdown" class="tag-dropdown" style="display:none"></div>' +
+function patientInputHtml(existingValue) {
+  return '<div class="field" style="position:relative">' +
+    '<label>Patient</label>' +
+    '<input id="m-client" type="text" value="' + esc(existingValue||'') + '" placeholder="Type to search or add patient…" autocomplete="off">' +
+    '<div id="m-patient-dropdown" class="tag-dropdown" style="display:none"></div>' +
   '</div>';
 }
 
-function initTagInput(existingValue) {
-  _tagNames = existingValue
-    ? existingValue.split(',').map(function(n) { return n.trim(); }).filter(Boolean)
-    : [];
-  renderTagChips();
-
-  var input = document.getElementById('m-client-input');
-  var dropdown = document.getElementById('m-tag-dropdown');
-  if (!input) return;
+function initPatientInput() {
+  var input = document.getElementById('m-client');
+  var dropdown = document.getElementById('m-patient-dropdown');
+  if (!input || !dropdown) return;
 
   function showDropdown(val) {
     var patients = getPatients();
     var lower = val.toLowerCase();
-    var matches = patients.filter(function(p) {
-      return p.toLowerCase().indexOf(lower) >= 0 && _tagNames.indexOf(p) === -1;
-    });
+    var matches = patients.filter(function(p) { return p.toLowerCase().indexOf(lower) >= 0; });
     var html = matches.map(function(p) {
       return '<div class="tag-option" data-name="' + esc(p) + '">' + esc(p) + '</div>';
     }).join('');
     var exact = patients.some(function(p) { return p.toLowerCase() === lower; });
-    if (val && !exact) {
-      html += '<div class="tag-option tag-option-new" data-name="' + esc(val) + '">+ Add "' + esc(val) + '"</div>';
-    }
+    if (!exact && val) html += '<div class="tag-option tag-option-new" data-name="' + esc(val) + '">+ New: "' + esc(val) + '"</div>';
     dropdown.innerHTML = html;
     dropdown.style.display = html ? 'block' : 'none';
     dropdown.querySelectorAll('.tag-option').forEach(function(el) {
       el.addEventListener('mousedown', function(e) {
         e.preventDefault();
-        addTag(el.dataset.name);
+        input.value = el.dataset.name;
+        dropdown.style.display = 'none';
       });
     });
   }
@@ -486,45 +469,14 @@ function initTagInput(existingValue) {
     var val = input.value.trim();
     if (val) showDropdown(val); else dropdown.style.display = 'none';
   });
-  input.addEventListener('focus', function() {
-    if (input.value.trim()) showDropdown(input.value.trim());
-  });
-  input.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && input.value.trim()) { e.preventDefault(); addTag(input.value.trim()); }
-    if (e.key === 'Backspace' && !input.value && _tagNames.length > 0) { _tagNames.pop(); renderTagChips(); }
-  });
-  input.addEventListener('blur', function() {
-    setTimeout(function() { dropdown.style.display = 'none'; }, 150);
-  });
+  input.addEventListener('focus', function() { if (input.value.trim()) showDropdown(input.value.trim()); });
+  input.addEventListener('blur', function() { setTimeout(function() { dropdown.style.display = 'none'; }, 150); });
 }
 
-function addTag(name) {
-  if (name && _tagNames.indexOf(name) === -1) _tagNames.push(name);
-  renderTagChips();
-  var input = document.getElementById('m-client-input');
-  var dropdown = document.getElementById('m-tag-dropdown');
-  if (input) { input.value = ''; input.focus(); }
-  if (dropdown) dropdown.style.display = 'none';
-}
-
-function renderTagChips() {
-  var row = document.getElementById('m-tags-row');
-  if (!row) return;
-  row.innerHTML = _tagNames.map(function(n) {
-    return '<span class="tag-chip">' + esc(n) + '<span class="tag-remove" data-name="' + esc(n) + '">×</span></span>';
-  }).join('');
-  row.querySelectorAll('.tag-remove').forEach(function(el) {
-    el.addEventListener('click', function() {
-      _tagNames = _tagNames.filter(function(n) { return n !== el.dataset.name; });
-      renderTagChips();
-    });
-  });
-}
-
-function getModalTags() {
-  var input = document.getElementById('m-client-input');
-  if (input && input.value.trim()) addTag(input.value.trim());
-  return _tagNames;
+function updateGroupButtons() {
+  var isGroup = document.getElementById('m-is-group');
+  var btn = document.getElementById('m-save-next');
+  if (isGroup && btn) btn.style.display = isGroup.checked ? 'inline-flex' : 'none';
 }
 
 // ── Add modal ─────────────────────────────────────────────────
@@ -536,7 +488,8 @@ function openAddModal(dayIdx, time, prefill, rescheduleFrom) {
   modal.innerHTML =
     '<div class="modal">' +
     '<h3>' + (rescheduleFrom ? 'Reschedule' : 'Add') + ' — ' + DAYS[dayIdx] + ', ' + fmtTime(time) + '</h3>' +
-    clientFieldHtml() +
+    patientInputHtml(p.clientName || '') +
+    '<div class="check-row"><input type="checkbox" id="m-is-group" onchange="updateGroupButtons()"' + (p.isGroup?' checked':'') + '><label for="m-is-group">Group class</label></div>' +
     '<div class="field"><label>Type</label><select id="m-type" onchange="updateTypeFields()">' +
       '<option value="ot"' + (p.type==='ot'?' selected':'') + '>My OT session</option>' +
       '<option value="pilates"' + (p.type==='pilates'?' selected':'') + '>My Pilates session</option>' +
@@ -565,7 +518,6 @@ function openAddModal(dayIdx, time, prefill, rescheduleFrom) {
         '<div class="field"><label>Session #</label><input id="m-sess-num" type="number" min="1" value="' + (p.sessionNum||1) + '"></div>' +
         '<div class="field"><label>Total sessions</label><input id="m-sess-total" type="number" min="1" value="' + (p.sessionTotal||10) + '"></div>' +
       '</div>' +
-      '<div class="field" id="m-pkg-rate-field" style="display:none"><label>Package rate (₹)</label><input id="m-pkg-rate" type="number" min="0" value="' + (p.packageRate||0) + '"></div>' +
     '</div>' +
     '<div class="section-title">Payment</div>' +
     '<div class="row2">' +
@@ -575,26 +527,26 @@ function openAddModal(dayIdx, time, prefill, rescheduleFrom) {
         ['Cash','GPay','Online','Card'].map(function(m){ return '<option value="' + m + '"' + (p.method===m?' selected':'') + '>' + m + '</option>'; }).join('') +
       '</select></div>' +
     '</div>' +
-    '<div class="check-row"><input type="checkbox" id="m-paid"' + (p.paid!==false?' checked':'') + '><label for="m-paid">Mark as paid</label></div>' +
+    '<div class="check-row"><input type="checkbox" id="m-paid"' + (p.paid!==false?' checked':'') + '><label for="m-paid">Session covered (paid)</label></div>' +
     '<div class="check-row"><input type="checkbox" id="m-zoom"' + (p.zoom?' checked':'') + '><label for="m-zoom">Zoom call</label></div>' +
     '<div class="field"><label>Notes (optional)</label><textarea id="m-notes">' + esc(p.notes||'') + '</textarea></div>' +
     '<div class="modal-actions">' +
       '<button class="btn" onclick="closeModal()">Cancel</button>' +
+      '<button id="m-save-next" class="btn" style="display:none" onclick="saveAppt(' + dayIdx + ',\'' + time + '\',null,true)">Save &amp; add next</button>' +
       '<button class="btn primary" onclick="saveAppt(' + dayIdx + ',\'' + time + '\',' + (rescheduleFrom ? '\'' + rescheduleFrom + '\'' : 'null') + ')">Save</button>' +
     '</div>' +
     '</div>';
   document.getElementById('modal-container').appendChild(modal);
-  initTagInput(p.clientName || '');
+  initPatientInput();
   updateTypeFields();
   updatePkgFields();
+  updateGroupButtons();
 }
 
 function updateTypeFields() {
   var t = document.getElementById('m-type').value;
   document.getElementById('m-delegate-row').style.display = t === 'delegated' ? 'block' : 'none';
   document.getElementById('m-pilates-fields').style.display = t === 'pilates' ? 'block' : 'none';
-  var pkgRate = document.getElementById('m-pkg-rate-field');
-  if (pkgRate) pkgRate.style.display = t === 'pilates' ? 'block' : 'none';
 }
 
 function updatePkgFields() {
@@ -602,22 +554,26 @@ function updatePkgFields() {
   document.getElementById('m-pkg-fields').style.display = on ? 'block' : 'none';
 }
 
-function saveAppt(dayIdx, time, rescheduleFrom) {
-  var tags = getModalTags();
-  if (tags.length === 0) { alert('Please add at least one patient'); return; }
+function saveAppt(dayIdx, time, rescheduleFrom, addNext) {
+  var clientName = (document.getElementById('m-client').value || '').trim();
+  if (!clientName) { alert('Please enter a patient name'); return; }
   var type = document.getElementById('m-type').value;
+  var isGroup = document.getElementById('m-is-group').checked;
   var w = currentWeek();
   var now = new Date().toISOString();
+  var startTime = document.getElementById('m-start').value;
+  var dur = parseInt(document.getElementById('m-dur').value);
   var appt = {
     id: 'a' + Date.now() + Math.random().toString(36).slice(2),
     weekId: w.id,
     mondayDate: w.mondayDate.toISOString(),
     dayIndex: dayIdx,
     dayName: DAYS[dayIdx],
-    startTime: document.getElementById('m-start').value,
-    endTime: minutesToTime(timeToMinutes(document.getElementById('m-start').value) + parseInt(document.getElementById('m-dur').value)),
-    duration: parseInt(document.getElementById('m-dur').value),
-    clientName: tags.join(', '),
+    startTime: startTime,
+    endTime: minutesToTime(timeToMinutes(startTime) + dur),
+    duration: dur,
+    clientName: clientName,
+    isGroup: isGroup,
     type: type,
     assignee: type === 'delegated' ? document.getElementById('m-assignee').value : '',
     format: type === 'pilates' ? document.getElementById('m-format').value : '',
@@ -625,7 +581,6 @@ function saveAppt(dayIdx, time, rescheduleFrom) {
     packageOn: document.getElementById('m-pkg').checked,
     sessionNum: document.getElementById('m-pkg').checked ? parseInt(document.getElementById('m-sess-num').value) : null,
     sessionTotal: document.getElementById('m-pkg').checked ? parseInt(document.getElementById('m-sess-total').value) : null,
-    packageRate: document.getElementById('m-pkg').checked && type === 'pilates' ? parseInt(document.getElementById('m-pkg-rate').value)||0 : null,
     zoom: document.getElementById('m-zoom').checked,
     amount: parseInt(document.getElementById('m-amount').value) || 0,
     method: document.getElementById('m-method').value,
@@ -646,8 +601,19 @@ function saveAppt(dayIdx, time, rescheduleFrom) {
   w.appointments.push(appt);
   API.saveAppointment(appt);
   saveLocalCache();
-  closeModal();
-  render();
+  if (addNext) {
+    // Reopen modal for same slot to add next group participant, pre-filling shared fields
+    closeModal();
+    render();
+    var prefill = { type: type, startTime: startTime, duration: dur, isGroup: true,
+      format: appt.format, equipment: appt.equipment, assignee: appt.assignee,
+      packageOn: appt.packageOn, sessionNum: appt.sessionNum, sessionTotal: appt.sessionTotal,
+      zoom: appt.zoom, method: appt.method, paid: appt.paid };
+    setTimeout(function() { openAddModal(dayIdx, time, prefill, null); }, 50);
+  } else {
+    closeModal();
+    render();
+  }
   updateOfflineBanner();
 }
 
@@ -668,7 +634,8 @@ function openDetail(id) {
     (a.assignee ? dr('Assigned to', a.assignee) : '') +
     (a.format ? dr('Format', a.format) : '') +
     (a.equipment ? dr('Equipment', a.equipment) : '') +
-    (a.packageOn ? dr('Package', 'Session ' + a.sessionNum + '/' + a.sessionTotal + (a.packageRate ? ' · ' + fmtAmt(a.packageRate) + ' total' : '')) : '') +
+    (a.isGroup ? dr('Class type', 'Group') : '') +
+    (a.packageOn ? dr('Package', 'Session ' + a.sessionNum + '/' + a.sessionTotal) : '') +
     dr('Amount', fmtAmt(a.amount) + (a.method ? ' · ' + a.method : '')) +
     dr('Paid', '<span class="paid-chip ' + (a.paid?'paid':'unpaid') + '">' + (a.paid?'Paid':'Unpaid') + '</span>') +
     (a.zoom ? dr('Zoom', '<span class="badge z">Z</span>') : '') +
@@ -703,7 +670,8 @@ function editAppt(id) {
     modal.innerHTML =
       '<div class="modal">' +
       '<h3>Edit — ' + DAYS[a.dayIndex] + ', ' + fmtTime(a.startTime) + '</h3>' +
-      clientFieldHtml() +
+      patientInputHtml(p.clientName || '') +
+      '<div class="check-row"><input type="checkbox" id="m-is-group"' + (p.isGroup?' checked':'') + '><label for="m-is-group">Group class</label></div>' +
       '<div class="field"><label>Type</label><select id="m-type" onchange="updateTypeFields()">' +
         '<option value="ot"' + (p.type==='ot'?' selected':'') + '>My OT session</option>' +
         '<option value="pilates"' + (p.type==='pilates'?' selected':'') + '>My Pilates session</option>' +
@@ -716,16 +684,16 @@ function editAppt(id) {
       '</div>' +
       '<div id="m-pilates-fields"><div class="section-title">Pilates details</div><div class="row2"><div class="field"><label>Format</label><select id="m-format"><option value="Personal"' + (p.format==='Personal'?' selected':'') + '>Personal</option><option value="Group"' + (p.format==='Group'?' selected':'') + '>Group</option></select></div><div class="field"><label>Equipment</label><select id="m-equip"><option value="Mat"' + (p.equipment==='Mat'?' selected':'') + '>Mat</option><option value="Equipment"' + (p.equipment==='Equipment'?' selected':'') + '>Equipment</option></select></div></div></div>' +
       '<div class="check-row"><input type="checkbox" id="m-pkg" onchange="updatePkgFields()"' + (p.packageOn?' checked':'') + '><label for="m-pkg">Package client</label></div>' +
-      '<div id="m-pkg-fields"><div class="row2"><div class="field"><label>Session #</label><input id="m-sess-num" type="number" min="1" value="' + (p.sessionNum||1) + '"></div><div class="field"><label>Total sessions</label><input id="m-sess-total" type="number" min="1" value="' + (p.sessionTotal||10) + '"></div></div><div class="field" id="m-pkg-rate-field"><label>Package rate (₹)</label><input id="m-pkg-rate" type="number" min="0" value="' + (p.packageRate||0) + '"></div></div>' +
+      '<div id="m-pkg-fields"><div class="row2"><div class="field"><label>Session #</label><input id="m-sess-num" type="number" min="1" value="' + (p.sessionNum||1) + '"></div><div class="field"><label>Total sessions</label><input id="m-sess-total" type="number" min="1" value="' + (p.sessionTotal||10) + '"></div></div></div>' +
       '<div class="section-title">Payment</div>' +
       '<div class="row2"><div class="field"><label>Amount (₹)</label><input id="m-amount" type="number" min="0" value="' + (p.amount||0) + '"></div><div class="field"><label>Method</label><select id="m-method"><option value="">–</option>' + ['Cash','GPay','Online','Card'].map(function(m){ return '<option value="' + m + '"' + (p.method===m?' selected':'') + '>' + m + '</option>'; }).join('') + '</select></div></div>' +
-      '<div class="check-row"><input type="checkbox" id="m-paid"' + (p.paid?' checked':'') + '><label for="m-paid">Mark as paid</label></div>' +
+      '<div class="check-row"><input type="checkbox" id="m-paid"' + (p.paid?' checked':'') + '><label for="m-paid">Session covered (paid)</label></div>' +
       '<div class="check-row"><input type="checkbox" id="m-zoom"' + (p.zoom?' checked':'') + '><label for="m-zoom">Zoom call</label></div>' +
       '<div class="field"><label>Notes (optional)</label><textarea id="m-notes">' + esc(p.notes||'') + '</textarea></div>' +
       '<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="updateAppt(\'' + a.id + '\',' + a.dayIndex + ')">Update</button></div>' +
       '</div>';
     document.getElementById('modal-container').appendChild(modal);
-    initTagInput(p.clientName || '');
+    initPatientInput();
     updateTypeFields();
     updatePkgFields();
   }, 50);
@@ -735,10 +703,11 @@ function updateAppt(id, dayIdx) {
   var w = currentWeek();
   var a = w.appointments.find(function(x) { return x.id === id; });
   if (!a) return;
-  var tags = getModalTags();
-  if (tags.length === 0) { alert('Please add at least one patient'); return; }
+  var clientName = (document.getElementById('m-client').value || '').trim();
+  if (!clientName) { alert('Please enter a patient name'); return; }
   var type = document.getElementById('m-type').value;
-  a.clientName = tags.join(', ');
+  a.clientName = clientName;
+  a.isGroup = document.getElementById('m-is-group').checked;
   a.type = type;
   a.dayIndex = dayIdx;
   a.dayName = DAYS[dayIdx];
@@ -751,7 +720,6 @@ function updateAppt(id, dayIdx) {
   a.packageOn = document.getElementById('m-pkg').checked;
   a.sessionNum = a.packageOn ? parseInt(document.getElementById('m-sess-num').value) : null;
   a.sessionTotal = a.packageOn ? parseInt(document.getElementById('m-sess-total').value) : null;
-  a.packageRate = a.packageOn && type === 'pilates' ? parseInt(document.getElementById('m-pkg-rate').value)||0 : null;
   a.amount = parseInt(document.getElementById('m-amount').value) || 0;
   a.method = document.getElementById('m-method').value;
   a.paid = document.getElementById('m-paid').checked;
@@ -1022,7 +990,7 @@ function switchTab(name) {
 function exportCSV() {
   var w = currentWeek();
   var dates = getWeekDates(w.mondayDate);
-  var headers = ['Week','Day','Date','Client','Type','Assignee','Start','End','Duration(min)','Format','Equipment','Package','Session#','SessionTotal','PackageRate(₹)','Zoom','Amount(₹)','Method','Paid','Notes','Status'];
+  var headers = ['Week','Day','Date','Client','Group','Type','Assignee','Start','End','Duration(min)','Format','Equipment','Package','Session#','SessionTotal','Zoom','Amount(₹)','Method','Paid','Notes','Status'];
   var rows = [headers.join(',')];
   var weekLabel = formatWeekLabel(w);
   w.appointments.forEach(function(a) {
@@ -1031,11 +999,11 @@ function exportCSV() {
     var dateStr = date.getDate() + '/' + (date.getMonth()+1) + '/' + date.getFullYear();
     rows.push([
       '"'+weekLabel+'"', DAYS[a.dayIndex], dateStr,
-      '"'+a.clientName+'"',
+      '"'+a.clientName+'"', a.isGroup?'Yes':'No',
       a.type==='ot'?'My OT':a.type==='pilates'?'My Pilates':'Delegated',
       a.assignee||'', a.startTime, minutesToTime(endMins), a.duration,
       a.format||'', a.equipment||'',
-      a.packageOn?'Yes':'No', a.sessionNum||'', a.sessionTotal||'', a.packageRate||'',
+      a.packageOn?'Yes':'No', a.sessionNum||'', a.sessionTotal||'',
       a.zoom?'Yes':'No', a.amount||0, a.method||'', a.paid?'Yes':'No',
       '"'+(a.notes||'').replace(/"/g,'""')+'"', a.status
     ].join(','));
