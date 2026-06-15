@@ -176,6 +176,19 @@ body{font-family:var(--font-sans,system-ui,sans-serif);font-size:13px;color:var(
 .hw-stats{display:flex;gap:12px;font-size:11px;color:var(--color-text-secondary)}
 .export-row{display:flex;justify-content:flex-end;padding:8px 12px;border-top:0.5px solid var(--color-border-tertiary);gap:8px}
 
+/* ── Patient tag input ───────────────────────────────────── */
+.tag-field{position:relative;margin-bottom:10px}
+.tag-field label{display:block;font-size:11px;color:var(--color-text-secondary);margin-bottom:3px}
+.tag-input-wrap{border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);padding:4px 6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:42px;cursor:text}
+.tag-input-wrap input{border:none;outline:none;background:transparent;color:var(--color-text-primary);font-size:16px;font-family:var(--font-sans);flex:1;min-width:100px;padding:2px}
+.tag-chip{background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:12px;padding:3px 8px;font-size:12px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.tag-remove{cursor:pointer;opacity:0.5;font-size:15px;line-height:1;padding:0 1px}
+.tag-remove:hover{opacity:1}
+.tag-dropdown{position:absolute;left:0;right:0;top:calc(100% + 2px);background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:50;max-height:200px;overflow-y:auto}
+.tag-option{padding:9px 12px;font-size:13px;cursor:pointer}
+.tag-option:hover,.tag-option:active{background:var(--color-background-secondary)}
+.tag-option-new{color:#7F77DD}
+
 /* ── Loading skeleton ────────────────────────────────────── */
 .loading{padding:24px;text-align:center;color:var(--color-text-secondary);font-size:13px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}

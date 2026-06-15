@@ -404,8 +404,10 @@ function setDailyDay(idx) {
 function pillHtml(a) {
   var cls = a.type === 'ot' ? 'ot' : a.type === 'pilates' ? 'pilates' : 'delegated';
   var extra = (!a.paid ? ' unpaid' : '') + (a.status === 'cancelled' ? ' cancelled' : '');
+  var names = (a.clientName || '').split(',').map(function(n) { return n.trim(); }).filter(Boolean);
+  var displayName = names.length > 1 ? names[0] + ' +' + (names.length - 1) : (names[0] || '–');
   return '<div class="pill ' + cls + extra + '" onclick="event.stopPropagation();openDetail(\'' + a.id + '\')" style="margin-bottom:1px">' +
-    '<div class="pill-name">' + esc(a.clientName) + '</div>' +
+    '<div class="pill-name">' + esc(displayName) + '</div>' +
     '<div class="pill-meta">' +
     (a.amount ? '<span style="font-size:9px">' + fmtAmt(a.amount) + '</span>' : '') +
     (a.zoom ? '<span class="badge z">Z</span>' : '') +
@@ -418,6 +420,113 @@ function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Patient tag input ─────────────────────────────────────────
+var _tagNames = [];
+
+function getPatients() {
+  var seen = {};
+  state.weeks.forEach(function(w) {
+    w.appointments.forEach(function(a) {
+      if (a.clientName) {
+        a.clientName.split(',').forEach(function(n) {
+          var t = n.trim();
+          if (t) seen[t] = true;
+        });
+      }
+    });
+  });
+  return Object.keys(seen).sort(function(a, b) { return a.localeCompare(b); });
+}
+
+function clientFieldHtml() {
+  return '<div class="tag-field" id="m-client-field">' +
+    '<label>Patient(s)</label>' +
+    '<div class="tag-input-wrap" id="m-tag-wrap">' +
+      '<div id="m-tags-row"></div>' +
+      '<input id="m-client-input" type="text" placeholder="Type to search or add…" autocomplete="off">' +
+    '</div>' +
+    '<div id="m-tag-dropdown" class="tag-dropdown" style="display:none"></div>' +
+  '</div>';
+}
+
+function initTagInput(existingValue) {
+  _tagNames = existingValue
+    ? existingValue.split(',').map(function(n) { return n.trim(); }).filter(Boolean)
+    : [];
+  renderTagChips();
+
+  var input = document.getElementById('m-client-input');
+  var dropdown = document.getElementById('m-tag-dropdown');
+  if (!input) return;
+
+  function showDropdown(val) {
+    var patients = getPatients();
+    var lower = val.toLowerCase();
+    var matches = patients.filter(function(p) {
+      return p.toLowerCase().indexOf(lower) >= 0 && _tagNames.indexOf(p) === -1;
+    });
+    var html = matches.map(function(p) {
+      return '<div class="tag-option" data-name="' + esc(p) + '">' + esc(p) + '</div>';
+    }).join('');
+    var exact = patients.some(function(p) { return p.toLowerCase() === lower; });
+    if (val && !exact) {
+      html += '<div class="tag-option tag-option-new" data-name="' + esc(val) + '">+ Add "' + esc(val) + '"</div>';
+    }
+    dropdown.innerHTML = html;
+    dropdown.style.display = html ? 'block' : 'none';
+    dropdown.querySelectorAll('.tag-option').forEach(function(el) {
+      el.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        addTag(el.dataset.name);
+      });
+    });
+  }
+
+  input.addEventListener('input', function() {
+    var val = input.value.trim();
+    if (val) showDropdown(val); else dropdown.style.display = 'none';
+  });
+  input.addEventListener('focus', function() {
+    if (input.value.trim()) showDropdown(input.value.trim());
+  });
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && input.value.trim()) { e.preventDefault(); addTag(input.value.trim()); }
+    if (e.key === 'Backspace' && !input.value && _tagNames.length > 0) { _tagNames.pop(); renderTagChips(); }
+  });
+  input.addEventListener('blur', function() {
+    setTimeout(function() { dropdown.style.display = 'none'; }, 150);
+  });
+}
+
+function addTag(name) {
+  if (name && _tagNames.indexOf(name) === -1) _tagNames.push(name);
+  renderTagChips();
+  var input = document.getElementById('m-client-input');
+  var dropdown = document.getElementById('m-tag-dropdown');
+  if (input) { input.value = ''; input.focus(); }
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+function renderTagChips() {
+  var row = document.getElementById('m-tags-row');
+  if (!row) return;
+  row.innerHTML = _tagNames.map(function(n) {
+    return '<span class="tag-chip">' + esc(n) + '<span class="tag-remove" data-name="' + esc(n) + '">×</span></span>';
+  }).join('');
+  row.querySelectorAll('.tag-remove').forEach(function(el) {
+    el.addEventListener('click', function() {
+      _tagNames = _tagNames.filter(function(n) { return n !== el.dataset.name; });
+      renderTagChips();
+    });
+  });
+}
+
+function getModalTags() {
+  var input = document.getElementById('m-client-input');
+  if (input && input.value.trim()) addTag(input.value.trim());
+  return _tagNames;
+}
+
 // ── Add modal ─────────────────────────────────────────────────
 function openAddModal(dayIdx, time, prefill, rescheduleFrom) {
   var p = prefill || {};
@@ -427,7 +536,7 @@ function openAddModal(dayIdx, time, prefill, rescheduleFrom) {
   modal.innerHTML =
     '<div class="modal">' +
     '<h3>' + (rescheduleFrom ? 'Reschedule' : 'Add') + ' — ' + DAYS[dayIdx] + ', ' + fmtTime(time) + '</h3>' +
-    '<div class="field"><label>Client name</label><input id="m-client" type="text" value="' + esc(p.clientName||'') + '" placeholder="Client name" autocomplete="off"></div>' +
+    clientFieldHtml() +
     '<div class="field"><label>Type</label><select id="m-type" onchange="updateTypeFields()">' +
       '<option value="ot"' + (p.type==='ot'?' selected':'') + '>My OT session</option>' +
       '<option value="pilates"' + (p.type==='pilates'?' selected':'') + '>My Pilates session</option>' +
@@ -475,6 +584,7 @@ function openAddModal(dayIdx, time, prefill, rescheduleFrom) {
     '</div>' +
     '</div>';
   document.getElementById('modal-container').appendChild(modal);
+  initTagInput(p.clientName || '');
   updateTypeFields();
   updatePkgFields();
 }
@@ -493,8 +603,8 @@ function updatePkgFields() {
 }
 
 function saveAppt(dayIdx, time, rescheduleFrom) {
-  var client = document.getElementById('m-client').value.trim();
-  if (!client) { alert('Please enter a client name'); return; }
+  var tags = getModalTags();
+  if (tags.length === 0) { alert('Please add at least one patient'); return; }
   var type = document.getElementById('m-type').value;
   var w = currentWeek();
   var now = new Date().toISOString();
@@ -507,7 +617,7 @@ function saveAppt(dayIdx, time, rescheduleFrom) {
     startTime: document.getElementById('m-start').value,
     endTime: minutesToTime(timeToMinutes(document.getElementById('m-start').value) + parseInt(document.getElementById('m-dur').value)),
     duration: parseInt(document.getElementById('m-dur').value),
-    clientName: client,
+    clientName: tags.join(', '),
     type: type,
     assignee: type === 'delegated' ? document.getElementById('m-assignee').value : '',
     format: type === 'pilates' ? document.getElementById('m-format').value : '',
@@ -593,7 +703,7 @@ function editAppt(id) {
     modal.innerHTML =
       '<div class="modal">' +
       '<h3>Edit — ' + DAYS[a.dayIndex] + ', ' + fmtTime(a.startTime) + '</h3>' +
-      '<div class="field"><label>Client name</label><input id="m-client" type="text" value="' + esc(p.clientName) + '"></div>' +
+      clientFieldHtml() +
       '<div class="field"><label>Type</label><select id="m-type" onchange="updateTypeFields()">' +
         '<option value="ot"' + (p.type==='ot'?' selected':'') + '>My OT session</option>' +
         '<option value="pilates"' + (p.type==='pilates'?' selected':'') + '>My Pilates session</option>' +
@@ -615,6 +725,7 @@ function editAppt(id) {
       '<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn primary" onclick="updateAppt(\'' + a.id + '\',' + a.dayIndex + ')">Update</button></div>' +
       '</div>';
     document.getElementById('modal-container').appendChild(modal);
+    initTagInput(p.clientName || '');
     updateTypeFields();
     updatePkgFields();
   }, 50);
@@ -624,10 +735,10 @@ function updateAppt(id, dayIdx) {
   var w = currentWeek();
   var a = w.appointments.find(function(x) { return x.id === id; });
   if (!a) return;
-  var client = document.getElementById('m-client').value.trim();
-  if (!client) { alert('Please enter a client name'); return; }
+  var tags = getModalTags();
+  if (tags.length === 0) { alert('Please add at least one patient'); return; }
   var type = document.getElementById('m-type').value;
-  a.clientName = client;
+  a.clientName = tags.join(', ');
   a.type = type;
   a.dayIndex = dayIdx;
   a.dayName = DAYS[dayIdx];
@@ -840,11 +951,22 @@ function renderCases() {
     filters.innerHTML =
       '<select id="f-type" onchange="renderCases()"><option value="">All types</option><option value="ot">My OT</option><option value="pilates">My Pilates</option><option value="delegated">Delegated</option></select>' +
       '<select id="f-day" onchange="renderCases()"><option value="">All days</option>' + DAYS.map(function(d,i){return '<option value="'+i+'">'+d+'</option>';}).join('') + '</select>' +
-      '<select id="f-paid" onchange="renderCases()"><option value="">All</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option></select>';
+      '<select id="f-paid" onchange="renderCases()"><option value="">All</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option></select>' +
+      '<select id="f-patient" onchange="renderCases()"><option value="">All patients</option></select>';
+  }
+  // Rebuild patient options dynamically (new patients may have been added)
+  var patientSel = document.getElementById('f-patient');
+  if (patientSel) {
+    var currentPatient = patientSel.value;
+    patientSel.innerHTML = '<option value="">All patients</option>' +
+      getPatients().map(function(p) {
+        return '<option value="' + esc(p) + '"' + (currentPatient === p ? ' selected' : '') + '>' + esc(p) + '</option>';
+      }).join('');
   }
   var typeF = (document.getElementById('f-type')||{}).value || '';
   var dayF = (document.getElementById('f-day')||{}).value || '';
   var paidF = (document.getElementById('f-paid')||{}).value || '';
+  var patientF = (document.getElementById('f-patient')||{}).value || '';
   var allAppts = [];
   state.weeks.forEach(function(w) {
     w.appointments.forEach(function(a) { allAppts.push(Object.assign({},a,{weekObj:w})); });
@@ -854,6 +976,9 @@ function renderCases() {
   if (dayF!=='') allAppts = allAppts.filter(function(a){return a.dayIndex===parseInt(dayF);});
   if (paidF==='paid') allAppts = allAppts.filter(function(a){return a.paid;});
   if (paidF==='unpaid') allAppts = allAppts.filter(function(a){return !a.paid;});
+  if (patientF) allAppts = allAppts.filter(function(a) {
+    return (a.clientName||'').split(',').map(function(n){return n.trim();}).indexOf(patientF) >= 0;
+  });
   allAppts.sort(function(a,b){return new Date(b.weekObj.mondayDate)-new Date(a.weekObj.mondayDate)||a.dayIndex-b.dayIndex||timeToMinutes(a.startTime)-timeToMinutes(b.startTime);});
   var container = document.getElementById('cases-list');
   if (allAppts.length===0){container.innerHTML='<p style="color:var(--color-text-secondary);font-size:12px">No cases match these filters.</p>';return;}

@@ -262,6 +262,22 @@ function refreshAccountsSummary(weekId) {
 // ── Data normalisation ────────────────────────────────────────
 // Sheets stores booleans as 'TRUE'/'FALSE' strings — convert back to JS booleans/numbers
 
+// Sheets can auto-convert "10:30" strings to Date objects. This extracts H:MM safely.
+function formatTimeValue(v) {
+  if (!v && v !== 0) return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    return v.getHours() + ':' + String(v.getMinutes()).padStart(2, '0');
+  }
+  var s = String(v);
+  // If Sheets returned a fractional day number (e.g. 0.4375 = 10:30)
+  var num = parseFloat(s);
+  if (!isNaN(num) && s.indexOf(':') === -1) {
+    var totalMins = Math.round(num * 24 * 60);
+    return Math.floor(totalMins / 60) + ':' + String(totalMins % 60).padStart(2, '0');
+  }
+  return s;
+}
+
 function normaliseAppt(a) {
   return {
     id: String(a.id),
@@ -269,8 +285,8 @@ function normaliseAppt(a) {
     mondayDate: String(a.mondayDate),
     dayIndex: parseInt(a.dayIndex) || 0,
     dayName: String(a.dayName || ''),
-    startTime: String(a.startTime),
-    endTime: String(a.endTime || ''),
+    startTime: formatTimeValue(a.startTime),
+    endTime: formatTimeValue(a.endTime),
     duration: parseInt(a.duration) || 60,
     clientName: String(a.clientName),
     type: String(a.type),
