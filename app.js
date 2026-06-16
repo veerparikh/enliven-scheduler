@@ -60,6 +60,15 @@ function getMondayOfWeek(date) {
   return d;
 }
 function addDays(date, n) { var d = new Date(date); d.setDate(d.getDate()+n); return d; }
+
+// Deterministic week id derived from the Monday date itself, so any device
+// computing "the week starting <date>" always lands on the exact same id —
+// this prevents two sessions from ever minting separate week records (and
+// therefore orphaned appointments) for the same calendar week.
+function weekIdForMonday(mondayDate) {
+  var d = new Date(mondayDate);
+  return 'w' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+}
 function todayDayIndex() {
   var w = currentWeek();
   if (!w) return -1;
@@ -245,7 +254,7 @@ function updateOfflineBanner() {
 function createInitialWeek() {
   var monday = getMondayOfWeek(new Date());
   var week = {
-    id: 'w' + Date.now(),
+    id: weekIdForMonday(monday),
     mondayDate: monday,
     label: '',
     appointments: [],
@@ -254,6 +263,9 @@ function createInitialWeek() {
   state.weeks = [week];
   state.currentWeekIdx = 0;
   persistWeek(week);
+  // The deterministic id may already have appointments saved by another
+  // device/session — fetch them rather than assuming this week is empty.
+  fetchWeekAppointments(week.id).then(function() { saveLocalCache(); render(); });
 }
 
 function navigateWeek(dir) {
@@ -267,16 +279,18 @@ function navigateWeek(dir) {
       render();
     }
   } else if (dir === -1) {
-    // Create a week for the previous Monday
+    // Create (or recover) the week for the previous Monday. The id is
+    // derived from the date itself, so if another device already created
+    // this same calendar week, we land on the exact same id and fetch its
+    // existing appointments instead of starting a duplicate, empty record.
     var firstWeek = state.weeks[0];
     var prevMonday = addDays(firstWeek.mondayDate, -7);
-    var week = { id: 'w' + Date.now(), mondayDate: prevMonday, label: '', appointments: [] };
+    var week = { id: weekIdForMonday(prevMonday), mondayDate: prevMonday, label: '', appointments: [] };
     week.label = formatWeekLabel(week);
     state.weeks.unshift(week);
     state.currentWeekIdx = 0;
     persistWeek(week);
-    saveLocalCache();
-    render();
+    fetchWeekAppointments(week.id).then(function() { saveLocalCache(); render(); });
   }
 }
 
@@ -288,15 +302,17 @@ function newWeek() {
   });
   if (existingIdx >= 0) {
     state.currentWeekIdx = existingIdx;
+    saveLocalCache();
+    render();
   } else {
-    var week = { id: 'w' + Date.now(), mondayDate: newMonday, label: '', appointments: [] };
+    var week = { id: weekIdForMonday(newMonday), mondayDate: newMonday, label: '', appointments: [] };
     week.label = formatWeekLabel(week);
     state.weeks.push(week);
     state.currentWeekIdx = state.weeks.length - 1;
     persistWeek(week);
+    // Same deterministic-id recovery as navigateWeek's back-fill.
+    fetchWeekAppointments(week.id).then(function() { saveLocalCache(); render(); });
   }
-  saveLocalCache();
-  render();
 }
 
 function persistWeek(week) {
