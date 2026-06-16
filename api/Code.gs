@@ -76,19 +76,42 @@ function getSpreadsheet() {
   return SpreadsheetApp.openById(SHEET_ID);
 }
 
-function getOrCreateSheet(name, headers) {
+// Creates the sheet with the given headers if it doesn't exist yet.
+// If it already exists, reconciles its real header row with `cols` by
+// appending any columns that code now expects but the sheet doesn't have
+// yet. This keeps the actual header row in the Sheet — not the `cols`
+// array in code — as the authoritative column order, so a schema change
+// in code can never desync from what's actually on the Sheet.
+function getOrCreateSheet(name, cols) {
   var ss = getSpreadsheet();
   var sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
-    sheet.appendRow(headers);
+    sheet.appendRow(cols);
     sheet.setFrozenRows(1);
-    // Style header row
-    sheet.getRange(1, 1, 1, headers.length)
+    sheet.getRange(1, 1, 1, cols.length)
+      .setFontWeight('bold')
+      .setBackground('#f3f3f3');
+    return sheet;
+  }
+
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+  var missing = cols.filter(function(c) { return headers.indexOf(c) < 0; });
+  if (missing.length > 0) {
+    sheet.getRange(1, lastCol + 1, 1, missing.length).setValues([missing]);
+    sheet.getRange(1, lastCol + 1, 1, missing.length)
       .setFontWeight('bold')
       .setBackground('#f3f3f3');
   }
   return sheet;
+}
+
+// The real header row in the sheet, in actual column order — always use
+// this for reading/writing row data instead of a hardcoded cols array.
+function getHeaders(sheet) {
+  var lastCol = Math.max(sheet.getLastColumn(), 1);
+  return sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
 }
 
 function sheetToObjects(sheet, cols) {
@@ -105,10 +128,10 @@ function sheetToObjects(sheet, cols) {
   });
 }
 
-function findRowById(sheet, id) {
+function findRowById(sheet, id, idColName) {
   var data = sheet.getDataRange().getValues();
   var headers = data[0].map(String);
-  var idCol = headers.indexOf('id');
+  var idCol = headers.indexOf(idColName || 'id');
   if (idCol < 0) return -1;
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][idCol]) === String(id)) return i + 1; // 1-based row number
@@ -116,8 +139,10 @@ function findRowById(sheet, id) {
   return -1;
 }
 
-function objectToRow(obj, cols) {
-  return cols.map(function(col) {
+// Builds a row using the sheet's REAL header order, not a fixed cols array,
+// so writes always land in the column that actually matches each field name.
+function objectToRow(obj, headers) {
+  return headers.map(function(col) {
     var v = obj[col];
     if (v === undefined || v === null) return '';
     if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
@@ -138,11 +163,12 @@ function saveWeek(body) {
   var week = body.week;
   if (!week || !week.id) return { error: 'Missing week data' };
 
+  var headers = getHeaders(sheet);
   var rowNum = findRowById(sheet, week.id);
-  var row = objectToRow(week, WEEK_COLS);
+  var row = objectToRow(week, headers);
 
   if (rowNum > 0) {
-    sheet.getRange(rowNum, 1, 1, WEEK_COLS.length).setValues([row]);
+    sheet.getRange(rowNum, 1, 1, headers.length).setValues([row]);
   } else {
     sheet.appendRow(row);
   }
@@ -172,11 +198,12 @@ function saveAppointment(body) {
   appt.updatedAt = new Date().toISOString();
 
   var sheet = getOrCreateSheet(SHEETS.appointments, APPT_COLS);
+  var headers = getHeaders(sheet);
   var rowNum = findRowById(sheet, appt.id);
-  var row = objectToRow(appt, APPT_COLS);
+  var row = objectToRow(appt, headers);
 
   if (rowNum > 0) {
-    sheet.getRange(rowNum, 1, 1, APPT_COLS.length).setValues([row]);
+    sheet.getRange(rowNum, 1, 1, headers.length).setValues([row]);
   } else {
     sheet.appendRow(row);
   }
@@ -249,11 +276,12 @@ function refreshAccountsSummary(weekId) {
   };
 
   var sumSheet = getOrCreateSheet(SHEETS.accounts_summary, SUMMARY_COLS);
-  var rowNum = findRowById(sumSheet, weekId);
-  var row = objectToRow(summary, SUMMARY_COLS);
+  var sumHeaders = getHeaders(sumSheet);
+  var rowNum = findRowById(sumSheet, weekId, 'weekId');
+  var row = objectToRow(summary, sumHeaders);
 
   if (rowNum > 0) {
-    sumSheet.getRange(rowNum, 1, 1, SUMMARY_COLS.length).setValues([row]);
+    sumSheet.getRange(rowNum, 1, 1, sumHeaders.length).setValues([row]);
   } else {
     sumSheet.appendRow(row);
   }
