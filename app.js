@@ -513,10 +513,7 @@ function openAddModal(dayIdx, time, prefill, rescheduleFrom) {
     '</div>' +
     '<div id="m-pilates-fields" style="display:none">' +
       '<div class="section-title">Pilates details</div>' +
-      '<div class="row2">' +
-        '<div class="field"><label>Format</label><select id="m-format"><option value="Personal"' + (p.format==='Personal'?' selected':'') + '>Personal</option><option value="Group"' + (p.format==='Group'?' selected':'') + '>Group</option></select></div>' +
-        '<div class="field"><label>Equipment</label><select id="m-equip"><option value="Mat"' + (p.equipment==='Mat'?' selected':'') + '>Mat</option><option value="Equipment"' + (p.equipment==='Equipment'?' selected':'') + '>Equipment</option></select></div>' +
-      '</div>' +
+      '<div class="field"><label>Equipment</label><select id="m-equip"><option value="Mat"' + (p.equipment==='Mat'?' selected':'') + '>Mat</option><option value="Equipment"' + (p.equipment==='Equipment'?' selected':'') + '>Equipment</option></select></div>' +
     '</div>' +
     '<div class="check-row"><input type="checkbox" id="m-pkg" onchange="updatePkgFields()"' + (p.packageOn?' checked':'') + '><label for="m-pkg">Package client</label></div>' +
     '<div id="m-pkg-fields" style="display:none">' +
@@ -582,7 +579,6 @@ function saveAppt(dayIdx, time, rescheduleFrom, addNext) {
     isGroup: isGroup,
     type: type,
     assignee: type === 'delegated' ? document.getElementById('m-assignee').value : '',
-    format: type === 'pilates' ? document.getElementById('m-format').value : '',
     equipment: type === 'pilates' ? document.getElementById('m-equip').value : '',
     packageOn: document.getElementById('m-pkg').checked,
     sessionNum: document.getElementById('m-pkg').checked ? parseInt(document.getElementById('m-sess-num').value) : null,
@@ -612,7 +608,7 @@ function saveAppt(dayIdx, time, rescheduleFrom, addNext) {
     closeModal();
     render();
     var prefill = { type: type, startTime: startTime, duration: dur, isGroup: true,
-      format: appt.format, equipment: appt.equipment, assignee: appt.assignee,
+      equipment: appt.equipment, assignee: appt.assignee,
       packageOn: appt.packageOn, sessionNum: appt.sessionNum, sessionTotal: appt.sessionTotal,
       zoom: appt.zoom, method: appt.method, paid: appt.paid };
     setTimeout(function() { openAddModal(dayIdx, time, prefill, null); }, 50);
@@ -638,7 +634,6 @@ function openDetail(id) {
     dr('Day & time', DAYS[a.dayIndex] + ', ' + fmtTime(a.startTime) + ' (' + a.duration + ' min)') +
     dr('Type', a.type==='ot'?'My OT':a.type==='pilates'?'My Pilates':'Delegated') +
     (a.assignee ? dr('Assigned to', a.assignee) : '') +
-    (a.format ? dr('Format', a.format) : '') +
     (a.equipment ? dr('Equipment', a.equipment) : '') +
     (a.isGroup ? dr('Class type', 'Group') : '') +
     (a.packageOn ? dr('Package', 'Session ' + a.sessionNum + '/' + a.sessionTotal) : '') +
@@ -688,7 +683,7 @@ function editAppt(id) {
         '<div class="field"><label>Start time</label><select id="m-start">' + TIMES.map(function(t){ return '<option value="' + t + '"' + (p.startTime===t?' selected':'') + '>' + fmtTime(t) + '</option>'; }).join('') + '</select></div>' +
         '<div class="field"><label>Duration</label><select id="m-dur"><option value="30"' + (p.duration===30?' selected':'') + '>30 min</option><option value="45"' + (p.duration===45?' selected':'') + '>45 min</option><option value="60"' + (p.duration===60?' selected':'') + '>1 hour</option></select></div>' +
       '</div>' +
-      '<div id="m-pilates-fields"><div class="section-title">Pilates details</div><div class="row2"><div class="field"><label>Format</label><select id="m-format"><option value="Personal"' + (p.format==='Personal'?' selected':'') + '>Personal</option><option value="Group"' + (p.format==='Group'?' selected':'') + '>Group</option></select></div><div class="field"><label>Equipment</label><select id="m-equip"><option value="Mat"' + (p.equipment==='Mat'?' selected':'') + '>Mat</option><option value="Equipment"' + (p.equipment==='Equipment'?' selected':'') + '>Equipment</option></select></div></div></div>' +
+      '<div id="m-pilates-fields"><div class="section-title">Pilates details</div><div class="field"><label>Equipment</label><select id="m-equip"><option value="Mat"' + (p.equipment==='Mat'?' selected':'') + '>Mat</option><option value="Equipment"' + (p.equipment==='Equipment'?' selected':'') + '>Equipment</option></select></div></div>' +
       '<div class="check-row"><input type="checkbox" id="m-pkg" onchange="updatePkgFields()"' + (p.packageOn?' checked':'') + '><label for="m-pkg">Package client</label></div>' +
       '<div id="m-pkg-fields"><div class="row2"><div class="field"><label>Session #</label><input id="m-sess-num" type="number" min="1" value="' + (p.sessionNum||1) + '"></div><div class="field"><label>Total sessions</label><input id="m-sess-total" type="number" min="1" value="' + (p.sessionTotal||10) + '"></div></div></div>' +
       '<div class="section-title">Payment</div>' +
@@ -721,7 +716,6 @@ function updateAppt(id, dayIdx) {
   a.duration = parseInt(document.getElementById('m-dur').value);
   a.endTime = minutesToTime(timeToMinutes(a.startTime) + a.duration);
   a.assignee = type === 'delegated' ? document.getElementById('m-assignee').value : '';
-  a.format = type === 'pilates' ? document.getElementById('m-format').value : '';
   a.equipment = type === 'pilates' ? document.getElementById('m-equip').value : '';
   a.packageOn = document.getElementById('m-pkg').checked;
   a.sessionNum = a.packageOn ? parseInt(document.getElementById('m-sess-num').value) : null;
@@ -996,7 +990,7 @@ function switchTab(name) {
 function exportCSV() {
   var w = currentWeek();
   var dates = getWeekDates(w.mondayDate);
-  var headers = ['Week','Day','Date','Client','Group','Type','Assignee','Start','End','Duration(min)','Format','Equipment','Package','Session#','SessionTotal','Zoom','Amount(₹)','Method','Paid','Notes','Status'];
+  var headers = ['Week','Day','Date','Client','Group','Type','Assignee','Start','End','Duration(min)','Equipment','Package','Session#','SessionTotal','Zoom','Amount(₹)','Method','Paid','Notes','Status'];
   var rows = [headers.join(',')];
   var weekLabel = formatWeekLabel(w);
   w.appointments.forEach(function(a) {
@@ -1008,7 +1002,7 @@ function exportCSV() {
       '"'+a.clientName+'"', a.isGroup?'Yes':'No',
       a.type==='ot'?'My OT':a.type==='pilates'?'My Pilates':'Delegated',
       a.assignee||'', a.startTime, minutesToTime(endMins), a.duration,
-      a.format||'', a.equipment||'',
+      a.equipment||'',
       a.packageOn?'Yes':'No', a.sessionNum||'', a.sessionTotal||'',
       a.zoom?'Yes':'No', a.amount||0, a.method||'', a.paid?'Yes':'No',
       '"'+(a.notes||'').replace(/"/g,'""')+'"', a.status
