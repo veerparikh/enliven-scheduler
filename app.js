@@ -191,9 +191,14 @@ function syncFromSheets() {
       render();
     })
     .catch(function(err) {
-      showSyncIndicator(false);
-      console.warn('Sync failed (offline?):', err);
-      // Keep showing cached data, no disruption
+      console.warn('Sync failed:', err);
+      if (state.weeks.length === 0) {
+        // Nothing cached and nothing loaded — show a clear, recoverable error instead of hanging
+        showSyncError();
+      } else {
+        showSyncIndicator(false);
+        render();
+      }
     });
 }
 
@@ -212,6 +217,12 @@ function showSyncIndicator(on) {
   var lbl = document.getElementById('week-label');
   if (!lbl) return;
   if (on) lbl.textContent = 'Syncing…';
+}
+
+function showSyncError() {
+  var lbl = document.getElementById('week-label');
+  if (!lbl) return;
+  lbl.innerHTML = '<span style="color:#E24B4A">Sync failed</span> — <a href="#" onclick="syncFromSheets();return false;" style="text-decoration:underline">tap to retry</a>';
 }
 
 // ── Offline banner ────────────────────────────────────────────
