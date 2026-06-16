@@ -69,6 +69,16 @@ function weekIdForMonday(mondayDate) {
   var d = new Date(mondayDate);
   return 'w' + d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
 }
+
+// Index of the week (Mon–Sat) that contains the given date, or -1 if none.
+function indexOfWeekContaining(weeks, date) {
+  for (var i = 0; i < weeks.length; i++) {
+    var monday = new Date(weeks[i].mondayDate);
+    var diffDays = Math.floor((date - monday) / 86400000);
+    if (diffDays >= 0 && diffDays <= 6) return i;
+  }
+  return -1;
+}
 function todayDayIndex() {
   var w = currentWeek();
   if (!w) return -1;
@@ -188,8 +198,20 @@ function syncFromSheets() {
         createInitialWeek();
         return Promise.resolve();
       }
+      // Always land on the week containing today, regardless of whatever
+      // index happened to be cached — creating it if it doesn't exist yet.
+      var todayIdx = indexOfWeekContaining(merged, new Date());
+      if (todayIdx < 0) {
+        var monday = getMondayOfWeek(new Date());
+        var todayWeek = { id: weekIdForMonday(monday), mondayDate: monday, label: '', appointments: [] };
+        todayWeek.label = formatWeekLabel(todayWeek);
+        merged.push(todayWeek);
+        merged.sort(function(a,b) { return new Date(a.mondayDate) - new Date(b.mondayDate); });
+        persistWeek(todayWeek);
+        todayIdx = indexOfWeekContaining(merged, new Date());
+      }
       state.weeks = merged;
-      state.currentWeekIdx = Math.max(0, Math.min(state.currentWeekIdx, state.weeks.length-1));
+      state.currentWeekIdx = todayIdx;
 
       // Now fetch appointments for the current week
       return fetchWeekAppointments(currentWeek().id);
