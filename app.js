@@ -188,10 +188,14 @@ function syncFromSheets() {
           appointments: existing ? existing.appointments : [],
         };
       });
-      // Keep any local weeks not yet pushed (created while offline)
+      // Keep any local weeks not yet pushed (created while offline),
+      // but discard legacy timestamp-based IDs (w + 13 digits) that predate
+      // the deterministic scheme (w + YYYYMMDD = 9 chars) — they can never
+      // match a server week and would pollute the week list indefinitely.
       state.weeks.forEach(function(lw) {
         var onServer = serverWeeks.find(function(sw) { return String(sw.id) === String(lw.id); });
-        if (!onServer) merged.push(lw);
+        var isDeterministicId = /^w\d{8}$/.test(String(lw.id));
+        if (!onServer && isDeterministicId) merged.push(lw);
       });
       merged.sort(function(a,b) { return new Date(a.mondayDate) - new Date(b.mondayDate); });
       if (merged.length === 0) {
